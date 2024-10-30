@@ -55,7 +55,7 @@ Deposit some satoshis to your address.
 5. Show nfts
 
 ```bash
-yarn cli wallet balances -i 917f97da0c3b4f9105d38b82134e570093956a0cc6001c59582f4d713aed6a93_0
+yarn cli wallet balances -i c1a1a777a52f765ebfa295a35c12280279edd46073d41f4767602f819f574f82_0
 ```
 
 You should see an output similar to:
@@ -64,8 +64,8 @@ You should see an output similar to:
 ┌──────────────────────────────────────────────────────────────────────┬──────────┬─────────┐
 │ collectionId                                                         │ symbol   │ localId │
 ┼──────────────────────────────────────────────────────────────────────┼──────────┼─────────┤
-│ '917f97da0c3b4f9105d38b82134e570093956a0cc6001c59582f4d713aed6a93_0' │ 'cat721' │ 1n      │
-│ '917f97da0c3b4f9105d38b82134e570093956a0cc6001c59582f4d713aed6a93_0' │ 'cat721' │ 0n      │
+│ 'c1a1a777a52f765ebfa295a35c12280279edd46073d41f4767602f819f574f82_0' │ 'LCAT' │ 1n      │
+│ 'c1a1a777a52f765ebfa295a35c12280279edd46073d41f4767602f819f574f82_0' │ 'LCAT' │ 0n      │
 ┴──────────────────────────────────────────────────────────────────────┴──────────┴─────────┘
 ```
 
@@ -81,26 +81,26 @@ yarn cli deploy --metadata=example.json
 
 ```json
 {
-    "name": "cat721",
-    "symbol": "cat721",
+    "name": "LCAT",
+    "symbol": "LCAT",
     "description": "this is a cat721 nft collection",
-    "max": "1000"
+    "max": "10"
 }
 ```
 
 - deploy with command line options:
 
 ```bash
-yarn cli deploy --name=cat721 --symbol=cat721 --max=1000
+yarn cli deploy --name=LCAT --symbol=LCAT --max=10
 ```
 
 You should see an output similar to:
 
 ```
-Nft collection cat721 has been deployed.
-CollectionId: 917f97da0c3b4f9105d38b82134e570093956a0cc6001c59582f4d713aed6a93_0
-Genesis txid: 917f97da0c3b4f9105d38b82134e570093956a0cc6001c59582f4d713aed6a93
-Reveal txid: ac901e6b9f62c38288751cbf7a80b0e12aa354f3cdb7ec42f1c8a3c1c10636ff
+Nft collection LCAT has been deployed.
+CollectionId: c1a1a777a52f765ebfa295a35c12280279edd46073d41f4767602f819f574f82_0
+Genesis txid: c1a1a777a52f765ebfa295a35c12280279edd46073d41f4767602f819f574f82
+Reveal txid: d7871b55f88545e0fb4df2a793fea77d0717a7bb7cab3d22a59b72ddb5b51265
 ```
 
 
@@ -112,7 +112,7 @@ yarn cli mint -i [collectionId]
 You should see an output similar to:
 
 ```
-Minting cat721 NFT in txid: ef9d98eeae21c6bd8aa172cc1d78d9e4e3749a7632e4119f2f2484396f95f5cb ...
+Minting LCAT NFT in txid: ef9d98eeae21c6bd8aa172cc1d78d9e4e3749a7632e4119f2f2484396f95f5cb ...
 ```
 
 1. Send nft
@@ -123,7 +123,7 @@ yarn cli send -i [collectionId] -l [localId] [receiver]
 You should see an output similar to:
 
 ```
-Sending cat721:0 nft  to bc1ppresfm876y9ddn3fgw2zr0wj0pl3zanslje9nfpznq3kc90q46rqvm9k07 
+Sending LCAT:0 nft  to bc1ppresfm876y9ddn3fgw2zr0wj0pl3zanslje9nfpznq3kc90q46rqvm9k07 
 in txid: 277eb0198b4fed9a03845d279cf58fc3289e8a68abdd36981381accb8c24ef52
 ```
 
