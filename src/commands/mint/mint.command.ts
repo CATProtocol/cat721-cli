@@ -301,7 +301,7 @@ export class MintCommand extends BoardcastCommand {
     };
 
     try {
-      const metadataFile = join(resource, `${localId % 10n}.json`);
+      const metadataFile = join(resource, `${localId}.json`);
 
       if (existsSync(metadataFile)) {
         const str = readFileSync(metadataFile).toString();
