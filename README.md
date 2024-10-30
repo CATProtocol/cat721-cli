@@ -1,6 +1,6 @@
 # CAT CLI
 
-`cli` requires a synced [tracker](https://github.com/CATProtocol/cat-token-box/blob/main/packages/tracker/README.md).
+`cli` requires a synced [tracker](https://github.com/CATProtocol/cat-token-box/blob/main/packages/tracker/README.md), run it from the beginning or follow this [guide](https://github.com/CATProtocol/cat-token-box/releases/tag/cat721) to upgrade.
 
 ## Installation
 
