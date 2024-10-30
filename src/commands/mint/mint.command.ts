@@ -93,7 +93,7 @@ export class MintCommand extends BoardcastCommand {
           collectionMerkleTree,
         );
 
-        if (minter == null) {
+        if (minter == null || !this.spendSerivce.isUnspent(minter.utxo)) {
           console.error(
             `no NFT [${collectionInfo.metadata.symbol}] minter found`,
           );
