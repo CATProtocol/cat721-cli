@@ -345,6 +345,9 @@ export const getNft = async function (
       }
     })
     .then(({ utxo: data }) => {
+      if (!data) {
+        return null;
+      }
       const protocolState = ProtocolState.fromStateHashList(
         data.txoStateHashes as ProtocolStateList,
       );
