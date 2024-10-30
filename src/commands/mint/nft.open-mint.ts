@@ -444,9 +444,10 @@ export async function openMint(
 
   if (res instanceof Error) {
     logerror('broadcast reveal NFT tx failed!', res);
-    log('tx', revealTx.uncheckedSerialize());
     return res;
   }
+
+  spendService.updateSpends(revealTx);
 
   return revealTx.id;
 }
