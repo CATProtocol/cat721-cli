@@ -1,6 +1,6 @@
 # CAT CLI
 
-`cli` requires a synced [tracker](../tracker/README.md).
+`cli` requires a synced [tracker](https://github.com/CATProtocol/cat-token-box/blob/main/packages/tracker/README.md).
 
 ## Installation
 
@@ -64,8 +64,8 @@ You should see an output similar to:
 ┌──────────────────────────────────────────────────────────────────────┬──────────┬─────────┐
 │ collectionId                                                         │ symbol   │ localId │
 ┼──────────────────────────────────────────────────────────────────────┼──────────┼─────────┤
-│ 'c1a1a777a52f765ebfa295a35c12280279edd46073d41f4767602f819f574f82_0' │ 'LCAT' │ 1n      │
-│ 'c1a1a777a52f765ebfa295a35c12280279edd46073d41f4767602f819f574f82_0' │ 'LCAT' │ 0n      │
+│ 'c1a1a777a52f765ebfa295a35c12280279edd46073d41f4767602f819f574f82_0' │ 'LCAT'   │ 1n      │
+│ 'c1a1a777a52f765ebfa295a35c12280279edd46073d41f4767602f819f574f82_0' │ 'LCAT'   │ 0n      │
 ┴──────────────────────────────────────────────────────────────────────┴──────────┴─────────┘
 ```
 
@@ -73,11 +73,15 @@ You should see an output similar to:
 
 - deploy with a metadata json:
 
+
 ```bash
-yarn cli deploy --metadata=example.json
+yarn cli deploy --metadata=metadata.json
 ```
 
-`example.json`:
+`metadata.json`:
+
+- closed mint:
+
 
 ```json
 {
@@ -88,10 +92,33 @@ yarn cli deploy --metadata=example.json
 }
 ```
 
+- open mint:
+
+
+```json
+{
+    "name": "LCAT",
+    "symbol": "LCAT",
+    "description": "this is a cat721 nft collection",
+    "premine": "0",
+    "max": "10"
+}
+```
+
 - deploy with command line options:
 
+
+- closed mint
+   
 ```bash
 yarn cli deploy --name=LCAT --symbol=LCAT --max=10
+```
+
+- open mint
+   
+
+```bash
+yarn cli deploy --name=LCAT --symbol=LCAT --max=10 --premine=0 --openMint
 ```
 
 You should see an output similar to:
