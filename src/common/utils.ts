@@ -459,7 +459,7 @@ export function needRetry(e: Error) {
   );
 }
 
-export function checkOpenMintTokenInfo(info: any): Error | null {
+export function checkOpenMintMetadata(info: any): Error | null {
   if (typeof info.name === 'undefined') {
     return new Error(`No token name provided!`);
   }
@@ -501,7 +501,7 @@ export function checkOpenMintTokenInfo(info: any): Error | null {
   }
 }
 
-export function checkClosedMintTokenInfo(info: any): Error | null {
+export function checkClosedMintMetadata(info: any): Error | null {
   if (typeof info.name === 'undefined') {
     return new Error(`No token name provided!`);
   }
