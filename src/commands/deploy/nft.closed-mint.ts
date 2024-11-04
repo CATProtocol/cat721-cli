@@ -42,16 +42,25 @@ export function getMinterInitialTxState(
 } {
   const protocolState = ProtocolState.getEmptyState();
 
-  const quotaStep = collectionMax / 5n;
+  let quotaStep = collectionMax / 5n;
 
-  const mod = collectionMax % 5n;
+  let mod = collectionMax % 5n;
 
   const states: NftClosedMinterState[] = [];
 
-  for (let i = 0; i < 5; i++) {
+  let maxMinterOutput = 5;
+  maxMinterOutput = Math.min(Number(collectionMax), 5);
+
+  // if collectionMax < 5n
+  if (collectionMax < 5n) {
+    quotaStep = 1n;
+    mod = 0n;
+  }
+
+  for (let i = 0; i < maxMinterOutput; i++) {
     const start = quotaStep * BigInt(i);
     let quotaMaxLocalId = start + quotaStep;
-    if (i == 4) {
+    if (i == maxMinterOutput - 1) {
       quotaMaxLocalId += mod;
     }
 
