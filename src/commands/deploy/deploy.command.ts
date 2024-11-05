@@ -4,8 +4,8 @@ import {
   logerror,
   btc,
   CollectionMetadata,
-  checkOpenMintTokenInfo,
-  checkClosedMintTokenInfo,
+  checkOpenMintMetadata,
+  checkClosedMintMetadata,
 } from 'src/common';
 import {
   generateCollectionMerkleTree,
@@ -81,7 +81,15 @@ export class DeployCommand extends BoardcastCommand {
         const content = readFileSync(options.metadata).toString();
         metadata = JSON.parse(content);
       } else {
-        metadata = options as unknown as CollectionMetadata;
+        const { name, symbol, description, max, premine } = options;
+
+        metadata = {
+          name,
+          symbol,
+          description,
+          max,
+          premine,
+        } as CollectionMetadata;
       }
 
       if (isEmptyOption(options)) {
@@ -93,8 +101,8 @@ export class DeployCommand extends BoardcastCommand {
       }
 
       const err = options.openMint
-        ? checkOpenMintTokenInfo(metadata)
-        : checkClosedMintTokenInfo(metadata);
+        ? checkOpenMintMetadata(metadata)
+        : checkClosedMintMetadata(metadata);
 
       if (err instanceof Error) {
         logerror('Invalid token metadata!', err);
