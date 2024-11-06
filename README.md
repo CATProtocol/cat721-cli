@@ -114,6 +114,12 @@ yarn cli deploy --metadata=metadata.json
 yarn cli deploy --name=LCAT --symbol=LCAT --max=10
 ```
 
+- parallel closed mint:
+    
+```bash
+yarn cli deploy --name=LCAT --symbol=LCAT --max=10 --parallel
+```
+
 - open mint
    
 
