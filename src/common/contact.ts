@@ -8,6 +8,7 @@ import {
   NftGuardConstState,
   OpenMinterV2State,
   NftOpenMinterState,
+  NftParallelClosedMinterState,
 } from '@cat-protocol/cat-smartcontracts';
 import { UTXO } from 'scrypt-ts';
 
@@ -29,6 +30,9 @@ export type TokenContract = Contract<CAT20State>;
 export type GuardContract = Contract<GuardConstState>;
 
 export type NFTClosedMinterContract = Contract<NftClosedMinterState>;
+
+export type NFTParallelClosedMinterContract =
+  Contract<NftParallelClosedMinterState>;
 
 export type NFTOpenMinterContract = Contract<NftOpenMinterState>;
 

@@ -2,6 +2,7 @@ import {
   NftClosedMinterState,
   NftOpenMinterMerkleTreeData,
   NftOpenMinterState,
+  NftParallelClosedMinterState,
   ProtocolState,
   ProtocolStateList,
 } from '@cat-protocol/cat-smartcontracts';
@@ -9,9 +10,14 @@ import {
   NFTClosedMinterContract,
   NFTContract,
   NFTOpenMinterContract,
+  NFTParallelClosedMinterContract,
 } from './contact';
 import { CollectionInfo } from './metadata';
-import { isNFTClosedMinter, isNFTOpenMinter } from './minterFinder';
+import {
+  isNFTClosedMinter,
+  isNFTOpenMinter,
+  isNFTParallelClosedMinter,
+} from './minterFinder';
 import { getNFTContractP2TR, p2tr2Address, script2P2TR, toP2tr } from './utils';
 import { logerror } from './log';
 import { ConfigService, SpendService } from 'src/providers';
@@ -20,7 +26,8 @@ import { getRawTransaction } from './apis';
 import { btc } from './btc';
 import { byteString2Int } from 'scrypt-ts';
 import { updateMerkleTree } from 'src/commands/mint/nft.open-mint';
-import { getMinterInitialTxState } from 'src/commands/deploy/nft.closed-mint';
+import { getMinterInitialTxState as getClosedMinterInitialTxState } from 'src/commands/deploy/nft.closed-mint';
+import { getMinterInitialTxState as getParallelClosedMinterInitialTxState } from 'src/commands/deploy/nft.parallel-closed-mint';
 
 export type ContractJSON = {
   utxo: {
@@ -92,7 +99,7 @@ const fetchNftClosedMinterState = async function (
   const minterP2TR = toP2tr(collectionInfo.minterAddr);
   const nftP2TR = toP2tr(collectionInfo.collectionAddr);
   if (txId === collectionInfo.revealTxid) {
-    const { states } = getMinterInitialTxState(
+    const { states } = getClosedMinterInitialTxState(
       nftP2TR,
       collectionInfo.metadata.max,
     );
@@ -137,12 +144,64 @@ const fetchNftClosedMinterState = async function (
   return null;
 };
 
-export const getNFTClosedMinter = async function (
+const fetchNftParallelClosedMinterState = async function (
+  config: ConfigService,
+  collectionInfo: CollectionInfo,
+  txId: string,
+  vout: number = 1,
+): Promise<NftParallelClosedMinterState | null> {
+  const minterP2TR = toP2tr(collectionInfo.minterAddr);
+  const nftP2TR = toP2tr(collectionInfo.collectionAddr);
+  if (txId === collectionInfo.revealTxid) {
+    const { states } = getParallelClosedMinterInitialTxState(nftP2TR);
+    return states[0];
+  }
+
+  const txhex = await getRawTransaction(config, txId);
+  if (txhex instanceof Error) {
+    logerror(`get raw transaction ${txId} failed!`, txhex);
+    return null;
+  }
+
+  const tx = new btc.Transaction(txhex);
+
+  const NEXTLOCALID_WITNESS_INDEX = 6;
+
+  for (let i = 0; i < tx.inputs.length; i++) {
+    const witnesses = tx.inputs[i].getWitnesses();
+
+    if (witnesses.length > 2) {
+      const lockingScriptBuffer = witnesses[witnesses.length - 2];
+      const { p2tr } = script2P2TR(lockingScriptBuffer);
+      if (p2tr === minterP2TR) {
+        const nextLocalId =
+          byteString2Int(witnesses[NEXTLOCALID_WITNESS_INDEX].toString('hex')) *
+            2n +
+          BigInt(vout);
+        const preState: NftParallelClosedMinterState = {
+          nftScript: nftP2TR,
+          nextLocalId,
+        };
+        return preState;
+      }
+    }
+  }
+
+  return null;
+};
+
+export const getNFTMinter = async function (
   config: ConfigService,
   collectionInfo: CollectionInfo,
   spendSerivce: SpendService,
-): Promise<NFTClosedMinterContract | null> {
-  const url = `${config.getTracker()}/api/minters/${collectionInfo.collectionId}/utxos?limit=5&offset=${0}`;
+  collectionMerkleTree?: NftOpenMinterMerkleTreeData,
+): Promise<
+  | NFTClosedMinterContract
+  | NFTOpenMinterContract
+  | NFTParallelClosedMinterContract
+  | null
+> {
+  const url = `${config.getTracker()}/api/minters/${collectionInfo.collectionId}/utxos?limit=100&offset=${0}`;
   return fetch(url, config.withProxy())
     .then((res) => res.json())
     .then((res: any) => {
@@ -153,39 +212,56 @@ export const getNFTClosedMinter = async function (
       }
     })
     .then(({ utxos: contracts }) => {
-      if (isNFTClosedMinter(collectionInfo.metadata.minterMd5)) {
-        return Promise.all(
-          contracts
-            .filter((c) => spendSerivce.isUnspent(c.utxo))
-            .map(async (c) => {
-              const protocolState = ProtocolState.fromStateHashList(
-                c.txoStateHashes as ProtocolStateList,
-              );
+      return Promise.all(
+        contracts
+          .filter((c) => spendSerivce.isUnspent(c.utxo))
+          .map(async (c) => {
+            const protocolState = ProtocolState.fromStateHashList(
+              c.txoStateHashes as ProtocolStateList,
+            );
 
-              if (typeof c.utxo.satoshis === 'string') {
-                c.utxo.satoshis = parseInt(c.utxo.satoshis);
-              }
+            if (typeof c.utxo.satoshis === 'string') {
+              c.utxo.satoshis = parseInt(c.utxo.satoshis);
+            }
 
-              const preState = await fetchNftClosedMinterState(
+            let data: any = null;
+
+            if (isNFTClosedMinter(collectionInfo.metadata.minterMd5)) {
+              data = await fetchNftClosedMinterState(
                 config,
                 collectionInfo,
                 c.utxo.txId,
                 c.utxo.outputIndex,
               );
+            } else if (
+              isNFTParallelClosedMinter(collectionInfo.metadata.minterMd5)
+            ) {
+              data = await fetchNftParallelClosedMinterState(
+                config,
+                collectionInfo,
+                c.utxo.txId,
+                c.utxo.outputIndex,
+              );
+            } else if (isNFTOpenMinter(collectionInfo.metadata.minterMd5)) {
+              data = await fetchNftOpenMinterState(
+                config,
+                collectionInfo,
+                c.utxo.txId,
+                collectionMerkleTree,
+              );
+            } else {
+              throw new Error('Unkown minter!');
+            }
 
-              const nftClosedMinterContract: NFTClosedMinterContract = {
-                utxo: c.utxo,
-                state: {
-                  protocolState,
-                  data: preState,
-                },
-              };
-              return nftClosedMinterContract;
-            }),
-        );
-      } else {
-        throw new Error('Unkown minter!');
-      }
+            return {
+              utxo: c.utxo,
+              state: {
+                protocolState,
+                data,
+              },
+            };
+          }),
+      );
     })
     .then((minters) => {
       return minters[0] || null;
@@ -248,63 +324,6 @@ const fetchNftOpenMinterState = async function (
   return null;
 };
 
-export const getNFTOpenMinter = async function (
-  config: ConfigService,
-  collectionInfo: CollectionInfo,
-  collectionMerkleTree: NftOpenMinterMerkleTreeData,
-  offset: number = 0,
-): Promise<NFTOpenMinterContract | null> {
-  const url = `${config.getTracker()}/api/minters/${collectionInfo.collectionId}/utxos?limit=1&offset=${offset}`;
-  return fetch(url, config.withProxy())
-    .then((res) => res.json())
-    .then((res: any) => {
-      if (res.code === 0) {
-        return res.data;
-      } else {
-        throw new Error(res.msg);
-      }
-    })
-    .then(({ utxos: contracts }) => {
-      if (isNFTOpenMinter(collectionInfo.metadata.minterMd5)) {
-        return Promise.all(
-          contracts.map(async (c) => {
-            const protocolState = ProtocolState.fromStateHashList(
-              c.txoStateHashes as ProtocolStateList,
-            );
-
-            if (typeof c.utxo.satoshis === 'string') {
-              c.utxo.satoshis = parseInt(c.utxo.satoshis);
-            }
-
-            const preState = await fetchNftOpenMinterState(
-              config,
-              collectionInfo,
-              c.utxo.txId,
-              collectionMerkleTree,
-            );
-
-            const nftOpenMinterContract: NFTOpenMinterContract = {
-              utxo: c.utxo,
-              state: {
-                protocolState,
-                data: preState,
-              },
-            };
-            return nftOpenMinterContract;
-          }),
-        );
-      } else {
-        throw new Error('Unkown minter!');
-      }
-    })
-    .then((minters) => {
-      return minters[0] || null;
-    })
-    .catch((e) => {
-      logerror(`fetch minters failed, minter: ${collectionInfo.minterAddr}`, e);
-      return null;
-    });
-};
 export const getTrackerStatus = async function (config: ConfigService): Promise<
   | {
       trackerBlockHeight: number;

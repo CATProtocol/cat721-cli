@@ -1,4 +1,4 @@
-import { ByteString, UTXO } from 'scrypt-ts';
+import { UTXO } from 'scrypt-ts';
 import {
   broadcast,
   script2P2TR,
@@ -8,69 +8,68 @@ import {
   Postage,
   btc,
   logerror,
+  toTokenAddress,
   CollectionMetadata,
   getNFTContractP2TR,
-  getNftOpenMinterContractP2TR,
+  getNftParallelClosedMinterContractP2TR,
 } from 'src/common';
 
 import {
   ProtocolState,
   getSHPreimage,
   int32,
-  NftOpenMinterProto,
-  NftOpenMinterState,
-  NftMerkleLeaf,
-  getCatNFTCommitScript,
-  HEIGHT,
-  NftOpenMinterMerkleTreeData,
   getCatCollectionCommitScript,
+  NftParallelClosedMinterState,
+  NftParallelClosedMinterProto,
 } from '@cat-protocol/cat-smartcontracts';
 import { ConfigService, WalletService } from 'src/providers';
-import { join } from 'path';
-import { existsSync, readFileSync } from 'fs';
 
-function getMinter(
-  wallet: WalletService,
-  genesisId: string,
-  max: int32,
-  premine: int32,
-) {
-  const premineAddr = premine > 0n ? wallet.getTokenAddress() : '';
-  return getNftOpenMinterContractP2TR(genesisId, max, premine, premineAddr);
+function getMinter(wallet: WalletService, genesisId: string, max: int32) {
+  const issuerAddress = wallet.getAddress();
+  return getNftParallelClosedMinterContractP2TR(
+    toTokenAddress(issuerAddress),
+    genesisId,
+    max,
+  );
 }
 
-function getMinterInitialTxState(
-  tokenP2TR: string,
-  merkleRoot: ByteString,
-): {
+export function getMinterInitialTxState(nftP2TR: string): {
   protocolState: ProtocolState;
-  data: NftOpenMinterState;
+  states: NftParallelClosedMinterState[];
 } {
   const protocolState = ProtocolState.getEmptyState();
-  const minterState = NftOpenMinterProto.create(tokenP2TR, merkleRoot, 0n);
-  const outputState = NftOpenMinterProto.toByteString(minterState);
+
+  const states: NftParallelClosedMinterState[] = [];
+
+  const state = NftParallelClosedMinterProto.create(nftP2TR, 0n);
+  const outputState = NftParallelClosedMinterProto.toByteString(state);
   protocolState.updateDataList(0, outputState);
+  states.push(state);
+
   return {
     protocolState,
-    data: minterState,
+    states,
   };
 }
 
 const buildRevealTx = (
   wallet: WalletService,
-  lockingScript: btc.Script,
+  genesisId: string,
+  lockingScript: Buffer,
+  metadata: CollectionMetadata,
   commitTx: btc.Transaction,
-  minterP2TR: string,
-  merkleRoot: ByteString,
   feeRate: number,
 ): btc.Transaction => {
-  const { tapScript, cblock } = script2P2TR(lockingScript);
-  const { p2tr: tokenP2TR } = getNFTContractP2TR(minterP2TR);
-
-  const { protocolState: txState } = getMinterInitialTxState(
-    tokenP2TR,
-    merkleRoot,
+  const { p2tr: minterP2TR } = getMinter(
+    wallet,
+    outpoint2ByteString(genesisId),
+    metadata.max,
   );
+
+  const { tapScript, cblock } = script2P2TR(lockingScript);
+  const { p2tr: nftP2TR } = getNFTContractP2TR(minterP2TR);
+
+  const { protocolState: txState, states } = getMinterInitialTxState(nftP2TR);
 
   const revealTx = new btc.Transaction()
     .from([
@@ -92,14 +91,18 @@ const buildRevealTx = (
         satoshis: 0,
         script: toStateScript(txState),
       }),
-    )
-    .addOutput(
+    );
+
+  for (let i = 0; i < states.length; i++) {
+    revealTx.addOutput(
       new btc.Transaction.Output({
         satoshis: Postage.MINTER_POSTAGE,
         script: minterP2TR,
       }),
-    )
-    .feePerByte(feeRate);
+    );
+  }
+
+  revealTx.feePerByte(feeRate);
 
   const witnesses: Buffer[] = [];
 
@@ -150,7 +153,6 @@ export async function deploy(
   utxos: UTXO[],
   wallet: WalletService,
   config: ConfigService,
-  merkleRoot: ByteString,
   icon?: {
     type: string;
     body: string;
@@ -199,19 +201,12 @@ export async function deploy(
 
   const dummyGenesisId = `${'0000000000000000000000000000000000000000000000000000000000000000'}_0`;
 
-  const { p2tr: dummyMinterP2TR } = getMinter(
-    wallet,
-    outpoint2ByteString(dummyGenesisId),
-    metadata.max,
-    metadata.premine || 0n,
-  );
-
   const revealTxDummy = buildRevealTx(
     wallet,
+    dummyGenesisId,
     lockingScript,
+    metadata,
     commitTx,
-    dummyMinterP2TR,
-    merkleRoot,
     feeRate,
   );
 
@@ -224,32 +219,28 @@ export async function deploy(
 
   commitTx.change(changeAddress);
 
-  if (commitTx.getChangeOutput() === null) {
-    throw new Error('Insufficient satoshi balance!');
+  if (commitTx.getChangeOutput() !== null) {
+    commitTx.getChangeOutput().satoshis -= 1;
   }
-
-  commitTx.getChangeOutput().satoshis -= 1;
 
   wallet.signTx(commitTx);
 
   const genesisId = `${commitTx.id}_0`;
 
+  const revealTx = buildRevealTx(
+    wallet,
+    genesisId,
+    lockingScript,
+    metadata,
+    commitTx,
+    feeRate,
+  );
+
   const { p2tr: minterP2TR } = getMinter(
     wallet,
     outpoint2ByteString(genesisId),
     metadata.max,
-    metadata.premine || 0n,
   );
-
-  const revealTx = buildRevealTx(
-    wallet,
-    lockingScript,
-    commitTx,
-    minterP2TR,
-    merkleRoot,
-    feeRate,
-  );
-
   const { p2tr: tokenP2TR } = getNFTContractP2TR(minterP2TR);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -284,67 +275,3 @@ export async function deploy(
     revealTx: revealTx,
   };
 }
-
-const createMerkleLeaf = function (
-  pubkeyX: string,
-  localId: bigint,
-  metadata: object,
-  content: {
-    type: string;
-    body: string;
-  },
-): NftMerkleLeaf {
-  const commitScript = getCatNFTCommitScript(pubkeyX, metadata, content);
-  const lockingScript = Buffer.from(commitScript, 'hex');
-  const { p2tr } = script2P2TR(lockingScript);
-  return {
-    commitScript: p2tr,
-    localId: localId,
-    isMined: false,
-  };
-};
-
-export const generateCollectionMerkleTree = function (
-  max: bigint,
-  pubkeyX: string,
-  type: string,
-  resourceDir: string,
-) {
-  const nftMerkleLeafList: NftMerkleLeaf[] = [];
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_, ext] = type.split('/');
-  if (!ext) {
-    throw new Error(`unknow type: ${type}`);
-  }
-  for (let index = 0n; index < max; index++) {
-    const body = readFileSync(join(resourceDir, `${index}.${ext}`)).toString(
-      'hex',
-    );
-
-    const metadata = {
-      localId: index,
-    };
-
-    try {
-      const metadataFile = join(resourceDir, `${index}.json`);
-
-      if (existsSync(metadataFile)) {
-        const str = readFileSync(metadataFile).toString();
-        const obj = JSON.parse(str);
-        Object.assign(metadata, obj);
-      }
-    } catch (error) {
-      logerror(`readMetaData FAIL, localId: ${index}`, error);
-    }
-
-    nftMerkleLeafList.push(
-      createMerkleLeaf(pubkeyX, index, metadata, {
-        type,
-        body,
-      }),
-    );
-  }
-
-  return new NftOpenMinterMerkleTreeData(nftMerkleLeafList, HEIGHT);
-};

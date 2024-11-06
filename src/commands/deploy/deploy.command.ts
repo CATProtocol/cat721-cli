@@ -13,6 +13,7 @@ import {
 } from './nft.open-mint';
 
 import { deploy as closedMintDeploy } from './nft.closed-mint';
+import { deploy as closedParallelMintDeploy } from './nft.parallel-closed-mint';
 import { ConfigService } from 'src/providers/configService';
 import { SpendService, WalletService } from 'src/providers';
 import { Inject } from '@nestjs/common';
@@ -26,6 +27,7 @@ import {
 import {
   NftClosedMinter,
   NftOpenMinter,
+  NftParallelClosedMinter,
 } from '@cat-protocol/cat-smartcontracts';
 
 interface DeployCommandOptions extends BoardcastCommandOptions {
@@ -41,6 +43,8 @@ interface DeployCommandOptions extends BoardcastCommandOptions {
   type?: string;
 
   openMint?: boolean;
+
+  parallel?: boolean;
 }
 
 function isEmptyOption(options: DeployCommandOptions) {
@@ -122,11 +126,19 @@ export class DeployCommand extends BoardcastCommand {
         return;
       }
 
-      Object.assign(metadata, {
-        minterMd5: options.openMint
-          ? NftOpenMinter.getArtifact().md5
-          : NftClosedMinter.getArtifact().md5,
-      });
+      if (options.openMint) {
+        Object.assign(metadata, {
+          minterMd5: NftOpenMinter.getArtifact().md5,
+        });
+      } else if (options.parallel) {
+        Object.assign(metadata, {
+          minterMd5: NftParallelClosedMinter.getArtifact().md5,
+        });
+      } else {
+        Object.assign(metadata, {
+          minterMd5: NftClosedMinter.getArtifact().md5,
+        });
+      }
 
       let result: {
         genesisTx: btc.Transaction;
@@ -166,6 +178,15 @@ export class DeployCommand extends BoardcastCommand {
           this.walletService,
           this.configService,
           collectionMerkleTree.merkleRoot,
+          icon,
+        );
+      } else if (options.parallel) {
+        result = await closedParallelMintDeploy(
+          metadata,
+          feeRate,
+          utxos,
+          this.walletService,
+          this.configService,
           icon,
         );
       } else {
@@ -371,6 +392,16 @@ export class DeployCommand extends BoardcastCommand {
   })
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   parseOpenMint(_val: string): boolean {
+    return true;
+  }
+
+  @Option({
+    flags: '--parallel [parallel]',
+    name: 'parallel',
+    description: 'parallel closed mint',
+  })
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  parseParallel(_val: string): boolean {
     return true;
   }
 }

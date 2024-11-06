@@ -3,11 +3,14 @@ import {
   getUtxos,
   logerror,
   btc,
-  getNFTOpenMinter,
   isNFTOpenMinter,
   isNFTClosedMinter,
-  getNFTClosedMinter,
+  getNFTMinter,
   toTokenAddress,
+  isNFTParallelClosedMinter,
+  NFTClosedMinterContract,
+  NFTParallelClosedMinterContract,
+  NFTOpenMinterContract,
 } from 'src/common';
 import { ConfigService, SpendService, WalletService } from 'src/providers';
 import { Inject } from '@nestjs/common';
@@ -21,6 +24,7 @@ import { accessSync, constants, existsSync, readFileSync } from 'fs';
 import { generateCollectionMerkleTree } from '../deploy/nft.open-mint';
 import { openMint } from './nft.open-mint';
 import { closedMint } from './nft.closed-mint';
+import { parallelClosedMint } from './nft.parallel-closed-mint';
 
 interface MintCommandOptions extends BoardcastCommandOptions {
   id: string;
@@ -78,39 +82,44 @@ export class MintCommand extends BoardcastCommand {
         return;
       }
 
+      const pubkeyX = this.walletService.getXOnlyPublicKey();
+      const collectionMerkleTree = isNFTOpenMinter(
+        collectionInfo.metadata.minterMd5,
+      )
+        ? generateCollectionMerkleTree(
+            collectionInfo.metadata.max,
+            pubkeyX,
+            contentType,
+            resourceDir,
+          )
+        : undefined;
+
+      const minter = await getNFTMinter(
+        this.configService,
+        collectionInfo,
+        this.spendSerivce,
+        collectionMerkleTree,
+      );
+
+      if (minter == null) {
+        console.error(
+          `no NFT [${collectionInfo.metadata.symbol}] minter found`,
+        );
+        return;
+      }
+
+      const contentBody = this.readNFTFile(
+        resourceDir,
+        minter.state.data.nextLocalId,
+        contentType,
+      );
+
+      const metadata = this.readMetaData(
+        resourceDir,
+        minter.state.data.nextLocalId,
+      );
+
       if (isNFTOpenMinter(collectionInfo.metadata.minterMd5)) {
-        const pubkeyX = this.walletService.getXOnlyPublicKey();
-        const collectionMerkleTree = generateCollectionMerkleTree(
-          collectionInfo.metadata.max,
-          pubkeyX,
-          contentType,
-          resourceDir,
-        );
-
-        const minter = await getNFTOpenMinter(
-          this.configService,
-          collectionInfo,
-          collectionMerkleTree,
-        );
-
-        if (minter == null || !this.spendSerivce.isUnspent(minter.utxo)) {
-          console.error(
-            `no NFT [${collectionInfo.metadata.symbol}] minter found`,
-          );
-          return;
-        }
-
-        const contentBody = this.readNFTFile(
-          resourceDir,
-          minter.state.data.nextLocalId,
-          contentType,
-        );
-
-        const metadata = this.readMetaData(
-          resourceDir,
-          minter.state.data.nextLocalId,
-        );
-
         const res = await openMint(
           this.configService,
           this.walletService,
@@ -118,7 +127,7 @@ export class MintCommand extends BoardcastCommand {
           feeRate,
           feeUtxos,
           collectionInfo,
-          minter,
+          minter as unknown as NFTOpenMinterContract,
           collectionMerkleTree,
           contentType,
           contentBody,
@@ -126,26 +135,10 @@ export class MintCommand extends BoardcastCommand {
           options.owner,
         );
 
-        if (res instanceof Error) {
-          throw res;
-        }
-
         console.log(
           `Minting ${collectionInfo.metadata.symbol}:${minter.state.data.nextLocalId} NFT in txid: ${res} ...`,
         );
       } else if (isNFTClosedMinter(collectionInfo.metadata.minterMd5)) {
-        const minter = await getNFTClosedMinter(
-          this.configService,
-          collectionInfo,
-          this.spendSerivce,
-        );
-
-        if (minter == null) {
-          console.error(
-            `no NFT [${collectionInfo.metadata.symbol}] minter found`,
-          );
-          return;
-        }
         const contentBody = this.readNFTFile(
           resourceDir,
           minter.state.data.nextLocalId,
@@ -164,7 +157,40 @@ export class MintCommand extends BoardcastCommand {
           feeRate,
           feeUtxos,
           collectionInfo,
-          minter,
+          minter as unknown as NFTClosedMinterContract,
+          contentType,
+          contentBody,
+          metadata,
+          options.owner,
+        );
+
+        if (res instanceof Error) {
+          throw res;
+        }
+
+        console.log(
+          `Minting ${collectionInfo.metadata.symbol}:${minter.state.data.nextLocalId} NFT in txid: ${res} ...`,
+        );
+      } else if (isNFTParallelClosedMinter(collectionInfo.metadata.minterMd5)) {
+        const contentBody = this.readNFTFile(
+          resourceDir,
+          minter.state.data.nextLocalId,
+          contentType,
+        );
+
+        const metadata = this.readMetaData(
+          resourceDir,
+          minter.state.data.nextLocalId,
+        );
+
+        const res = await parallelClosedMint(
+          this.configService,
+          this.walletService,
+          this.spendSerivce,
+          feeRate,
+          feeUtxos,
+          collectionInfo,
+          minter as NFTParallelClosedMinterContract,
           contentType,
           contentBody,
           metadata,

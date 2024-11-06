@@ -20,9 +20,9 @@ import {
   btc,
   verifyContract,
   CollectionInfo,
-  NFTClosedMinterContract,
-  getNftClosedMinterContractP2TR,
+  getNftParallelClosedMinterContractP2TR,
   script2P2TR,
+  NFTParallelClosedMinterContract,
 } from 'src/common';
 
 import {
@@ -30,12 +30,12 @@ import {
   ProtocolState,
   PreTxStatesInfo,
   ChangeInfo,
-  NftClosedMinterProto,
-  NftClosedMinterState,
+  NftParallelClosedMinterProto,
+  NftParallelClosedMinterState,
   CAT721State,
   CAT721Proto,
   getTxCtxMulti,
-  NftClosedMinter,
+  NftParallelClosedMinter,
 } from '@cat-protocol/cat-smartcontracts';
 import { ConfigService, SpendService, WalletService } from 'src/providers';
 import { createNft, unlockNFT } from './nft';
@@ -46,7 +46,7 @@ const calcVsize = async (
   newState: ProtocolState,
   tokenMint: CAT721State,
   preTxState: PreTxStatesInfo,
-  preState: NftClosedMinterState,
+  preState: NftParallelClosedMinterState,
   minterTapScript: string,
   nftTapScript: string,
   inputIndex: number,
@@ -94,7 +94,7 @@ const calcVsize = async (
       fromUTXO: getDummyUTXO(),
       verify: false,
       exec: false,
-    } as MethodCallOptions<NftClosedMinter>,
+    } as MethodCallOptions<NftParallelClosedMinter>,
   );
   const witnesses = [
     ...callToBufferList(minterCall),
@@ -108,14 +108,14 @@ const calcVsize = async (
   return vsize;
 };
 
-export async function closedMint(
+export async function parallelClosedMint(
   config: ConfigService,
   wallet: WalletService,
   spendService: SpendService,
   feeRate: number,
   feeUtxos: UTXO[],
   collectionInfo: CollectionInfo,
-  minterContract: NFTClosedMinterContract,
+  minterContract: NFTParallelClosedMinterContract,
   contentType: string,
   contentBody: string,
   nftmetadata: object,
@@ -146,27 +146,47 @@ export async function closedMint(
 
   const newState = ProtocolState.getEmptyState();
 
-  const newNextLocalId = preState.nextLocalId + 1n;
-  const tokenState = CAT721Proto.create(owner, preState.nextLocalId);
-  if (newNextLocalId < preState.quotaMaxLocalId) {
-    const minterState = NftClosedMinterProto.create(
+  const max = collectionInfo.metadata.max;
+  const newNextLocalId1 = preState.nextLocalId * 2n + 1n;
+  const newNextLocalId2 = preState.nextLocalId * 2n + 2n;
+
+  const minterStates: NftParallelClosedMinterState[] = [];
+  if (newNextLocalId1 < max) {
+    const minterState = NftParallelClosedMinterProto.create(
       tokenP2TR,
-      preState.quotaMaxLocalId,
-      newNextLocalId,
+      newNextLocalId1,
     );
-    newState.updateDataList(0, NftClosedMinterProto.toByteString(minterState));
-    const tokenState = CAT721Proto.create(owner, preState.nextLocalId);
-    newState.updateDataList(1, CAT721Proto.toByteString(tokenState));
-  } else {
-    newState.updateDataList(0, CAT721Proto.toByteString(tokenState));
+    minterStates.push(minterState);
+    newState.updateDataList(
+      0,
+      NftParallelClosedMinterProto.toByteString(minterState),
+    );
   }
+
+  if (newNextLocalId2 < max) {
+    const minterState = NftParallelClosedMinterProto.create(
+      tokenP2TR,
+      newNextLocalId2,
+    );
+    minterStates.push(minterState);
+    newState.updateDataList(
+      1,
+      NftParallelClosedMinterProto.toByteString(minterState),
+    );
+  }
+
+  const tokenState = CAT721Proto.create(owner, preState.nextLocalId);
+  newState.updateDataList(
+    minterStates.length,
+    CAT721Proto.toByteString(tokenState),
+  );
 
   const issuerAddress = wallet.getTokenAddress();
   const {
     tapScript: minterTapScript,
     cblock: cblockMinter,
     contract: minter,
-  } = getNftClosedMinterContractP2TR(
+  } = getNftParallelClosedMinterContractP2TR(
     issuerAddress,
     genesisId,
     collectionInfo.metadata.max,
@@ -193,13 +213,15 @@ export async function closedMint(
       }),
     );
 
-  if (newNextLocalId < preState.quotaMaxLocalId) {
-    revealTx.addOutput(
-      new btc.Transaction.Output({
-        script: new btc.Script(minterUtxo.script),
-        satoshis: Postage.MINTER_POSTAGE,
-      }),
-    );
+  if (minterStates.length > 0) {
+    for (let i = 0; i < minterStates.length; i++) {
+      revealTx.addOutput(
+        new btc.Transaction.Output({
+          script: new btc.Script(minterUtxo.script),
+          satoshis: Postage.MINTER_POSTAGE,
+        }),
+      );
+    }
   }
 
   revealTx
@@ -267,8 +289,7 @@ export async function closedMint(
   const changeAmount =
     revealTx.inputAmount -
     vsize * feeRate -
-    Postage.MINTER_POSTAGE *
-      (newNextLocalId < collectionInfo.metadata.max ? 1 : 0) -
+    Postage.MINTER_POSTAGE * minterStates.length -
     Postage.TOKEN_POSTAGE;
 
   if (changeAmount < 546) {
@@ -318,7 +339,7 @@ export async function closedMint(
       fromUTXO: getDummyUTXO(),
       verify: false,
       exec: false,
-    } as MethodCallOptions<NftClosedMinter>,
+    } as MethodCallOptions<NftParallelClosedMinter>,
   );
   const witnesses = [
     ...callToBufferList(minterCall),

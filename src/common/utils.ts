@@ -14,6 +14,7 @@ import {
   NftTransferGuard,
   NftClosedMinterProto,
   NftOpenMinter,
+  NftParallelClosedMinter,
 } from '@cat-protocol/cat-smartcontracts';
 
 import { btc } from './btc';
@@ -229,6 +230,14 @@ export function getClosedNFTMinterContract(
   return new NftClosedMinter(issuerAddress, genesisId, max);
 }
 
+export function getParallelClosedNFTMinterContract(
+  issuerAddress: string,
+  genesisId: ByteString,
+  max: int32,
+) {
+  return new NftParallelClosedMinter(issuerAddress, genesisId, max);
+}
+
 export function getNFTOpenMinterContract(
   genesisId: ByteString,
   max: int32,
@@ -306,6 +315,16 @@ export function getNftClosedMinterContractP2TR(
 ) {
   return contract2P2TR(
     getClosedNFTMinterContract(issuerAddress, genesisId, max),
+  );
+}
+
+export function getNftParallelClosedMinterContractP2TR(
+  issuerAddress: string,
+  genesisId: ByteString,
+  max: int32,
+) {
+  return contract2P2TR(
+    getParallelClosedNFTMinterContract(issuerAddress, genesisId, max),
   );
 }
 

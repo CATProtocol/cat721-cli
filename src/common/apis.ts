@@ -112,7 +112,7 @@ export const getUtxos = async function (
     return utxos;
   }
 
-  if (config.isFractalNetwork() && !config.useRpc()) {
+  if (config.isFractalNetwork() && !config.useRpc() && config.getApiKey()) {
     return getFractalUtxos(config, address);
   }
 

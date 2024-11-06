@@ -241,9 +241,10 @@ export async function deploy(
 
   const revealTxFee =
     revealTxDummy.vsize * feeRate +
-    Postage.MINTER_POSTAGE * (revealTxDummy.outputs.length - 1);
+    Postage.MINTER_POSTAGE * (revealTxDummy.outputs.length - 1) -
+    Postage.METADATA_POSTAGE;
 
-  commitTx.outputs[1].satoshis = revealTxFee;
+  commitTx.outputs[1].satoshis = Math.max(revealTxFee, 546);
 
   commitTx.change(changeAddress);
 
