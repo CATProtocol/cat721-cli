@@ -386,10 +386,10 @@
     "@noble/hashes" "^1.1.5"
     "@noble/secp256k1" "^1.7.1"
 
-"@cat-protocol/cat-smartcontracts@0.2.1":
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/@cat-protocol/cat-smartcontracts/-/cat-smartcontracts-0.2.1.tgz#1ce3701e485590f130d6ec050500905191b5dce5"
-  integrity sha512-qF9EQ/vHT54nyonnHk/OiSH7bn5UNIF7DfSi68Rr+tmmmxSVkcNO0xFzrWpcshtt4hj1h66aoMpb+QQCvI0sMA==
+"@cat-protocol/cat-smartcontracts@^0.2.5":
+  version "0.2.5"
+  resolved "https://registry.yarnpkg.com/@cat-protocol/cat-smartcontracts/-/cat-smartcontracts-0.2.5.tgz#86e2e95cd5c5a34ff5626e257383a6d0066ca21c"
+  integrity sha512-iY6Tw9VEkhqc5cmRXA/rw2buhcsxPwlgkJCgERLHEn4vqhzgNjAD94yPCgc+raL0YhEFF+RQmzmN8AMprMeAuA==
   dependencies:
     "@cmdcode/buff" "^2.2.4"
     "@cmdcode/crypto-tools" "^2.7.4"
@@ -401,7 +401,7 @@
     ecpair "^2.1.0"
     ecurve "^1.0.6"
     js-sha256 "^0.9.0"
-    scrypt-ts "1.4.0"
+    scrypt-ts "^1.4.1"
     varuint-bitcoin "=1.1.2"
 
 "@cmdcode/buff@^2.2.4", "@cmdcode/buff@^2.2.5":
@@ -1070,10 +1070,10 @@
   resolved "https://registry.yarnpkg.com/@pkgr/core/-/core-0.1.1.tgz#1ec17e2edbec25c8306d424ecfbf13c7de1aaa31"
   integrity sha512-cq8o4cWH0ibXh9VGi5P20Tu9XF/0fFXl9EUinr9QfTM7a7p0oTA4iJRCQWppXR1Pg8dSM0UCItCkPwsk9qWWYA==
 
-"@scrypt-inc/bsv@^1.0.1":
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/@scrypt-inc/bsv/-/bsv-1.0.1.tgz#ccc07815456deb6edac461307e1622f7e3da56d3"
-  integrity sha512-F44y7CiSiXwSWroE7GGTacq2XvmcjRpaJmvfmq8BWqw3nmA4ODi1RUaMhDBj7OqnmEAaN5GQF2m33VKbR4HbVw==
+"@scrypt-inc/bsv@^1.0.2":
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/@scrypt-inc/bsv/-/bsv-1.0.2.tgz#af6b9c069575af83fb76f56bcf36deb39f2e3c20"
+  integrity sha512-uegmZ6PieSoiQEjSysidII4z+JZKmJTh3K8P+KYvfstrH0mCzJOvsZXZllhYpwL0F3SfWhDvZ18PVQ3I18Gbmw==
   dependencies:
     aes-js "^3.1.2"
     assert "^2.1.0"
@@ -6243,28 +6243,28 @@ schema-utils@^3.1.1, schema-utils@^3.2.0:
     ajv "^6.12.5"
     ajv-keywords "^3.5.2"
 
-scrypt-ts@1.4.0:
-  version "1.4.0"
-  resolved "https://registry.yarnpkg.com/scrypt-ts/-/scrypt-ts-1.4.0.tgz#d72b9aa4e28ba16d2b33e58e93c503f10d97f448"
-  integrity sha512-mmdnJ0zDopUo44sfXbgUOlxBF1mXNJhL8lyTy77GgC/rez85vS1nzeLf9SuKe9/BZJDM/vu7rIu08mpMkS/8ag==
+scrypt-ts@^1.4.1:
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/scrypt-ts/-/scrypt-ts-1.4.1.tgz#6fd969a7beb34f67671c67b680e9c2ec59aab52a"
+  integrity sha512-xiHw5rT7lyi3zkwpQ/CTNHkWvmMmoZrtTGutpEqdfIuscAFh6DEHH+QBd7fK1nUD1L0Q1vIcNmMKy3Gl+l+93Q==
   dependencies:
     deep-equal "^2.2.0"
     fast-diff "^1.2.0"
     lodash "^4.17.21"
     object-hash "^3.0.0"
     reflect-metadata "^0.1.13"
-    scryptlib "^2.2.0"
+    scryptlib "^2.2.2"
     socket.io-client "^4.6.1"
     superagent "^8.0.9"
 
-scryptlib@^2.2.0:
-  version "2.2.1"
-  resolved "https://registry.yarnpkg.com/scryptlib/-/scryptlib-2.2.1.tgz#988d230cace370b37d7d7d0953743fa00524a639"
-  integrity sha512-Z+knbJ46PzIfk9seD82Kj3ahQT0q7sts1oexCJIlYzs/VEXFSSttIFD1inUYhh6EWpKfFc+bJgKwwsHQENHT6g==
+scryptlib@^2.2.2:
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/scryptlib/-/scryptlib-2.2.2.tgz#7f47ddfe0a1379897631f38243fb414a680d451e"
+  integrity sha512-pvckNQYy4dXum8U2jFKL4XAtyeBWmjwY1BqV3lAaDT9mCy0kgCpyWokEGoCyfXDYji1tA8HvctYDz37tLdjq0A==
   dependencies:
     "@discoveryjs/json-ext" "^0.5.7"
     "@jridgewell/sourcemap-codec" "^1.4.15"
-    "@scrypt-inc/bsv" "^1.0.1"
+    "@scrypt-inc/bsv" "^1.0.2"
     chalk "2.4.2"
     compare-versions "^3.6.0"
     find-node-modules "^2.1.3"
