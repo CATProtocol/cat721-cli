@@ -8,9 +8,10 @@ import {
   rpc_getrawtransaction,
   rpc_listunspent,
 } from './apis-rpc';
-import { logerror, logwarn } from './log';
+import { logerror } from './log';
 import { btc } from './btc';
 import { ConfigService, WalletService } from 'src/providers';
+import { sleep } from './utils';
 
 export const getFeeRate = async function (
   config: ConfigService,
@@ -188,13 +189,53 @@ export const getConfirmations = async function (
   if (config.useRpc()) {
     return rpc_getconfirmations(config, txid);
   }
-
-  logwarn('No supported getconfirmations', new Error());
-  return {
-    blockhash: '',
-    confirmations: -1,
-  };
+  const url = `${config.getMempoolApiHost()}/api/tx/${txid}/status`;
+  return fetch(url, config.withProxy())
+    .then(async (res) => {
+      const contentType = res.headers.get('content-type');
+      if (contentType.includes('json')) {
+        return res.json();
+      } else {
+        return res.text();
+      }
+    })
+    .then(async (data) => {
+      if (typeof data === 'object') {
+        return {
+          blockhash: data['block_hash'],
+          confirmations: data['confirmed'] ? 1 : -1,
+        };
+      } else if (typeof data === 'object') {
+        throw new Error(JSON.stringify(data));
+      } else if (typeof data === 'string') {
+        throw new Error(data);
+      }
+    })
+    .catch((e) => {
+      logerror('getconfirmations failed!', e);
+      return e;
+    });
 };
+
+export async function waitConfirm(config, txid) {
+  while (true) {
+    const confirmationsRes = await getConfirmations(config, txid);
+
+    if (confirmationsRes instanceof Error) {
+      logerror(`txid ${txid} getConfirmations error`, confirmationsRes);
+      throw confirmationsRes;
+    }
+
+    if (confirmationsRes.confirmations > 0) {
+      console.log(
+        `tx: ${txid} got ${confirmationsRes.confirmations} confirmed`,
+      );
+      break;
+    }
+    console.log(`wait tx: ${txid} to be confirmed ...`);
+    await sleep(2);
+  }
+}
 
 export async function broadcast(
   config: ConfigService,

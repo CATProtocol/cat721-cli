@@ -11,6 +11,9 @@ import {
   NFTClosedMinterContract,
   NFTParallelClosedMinterContract,
   NFTOpenMinterContract,
+  sleep,
+  getNFTClosedMinters,
+  waitConfirm,
 } from 'src/common';
 import { ConfigService, SpendService, WalletService } from 'src/providers';
 import { Inject } from '@nestjs/common';
@@ -25,6 +28,7 @@ import { generateCollectionMerkleTree } from '../deploy/nft.open-mint';
 import { openMint } from './nft.open-mint';
 import { closedMint } from './nft.closed-mint';
 import { parallelClosedMint } from './nft.parallel-closed-mint';
+import { feeSplitTx } from './split';
 
 interface MintCommandOptions extends BoardcastCommandOptions {
   id: string;
@@ -139,6 +143,120 @@ export class MintCommand extends BoardcastCommand {
           `Minting ${collectionInfo.metadata.symbol}:${minter.state.data.nextLocalId} NFT in txid: ${res} ...`,
         );
       } else if (isNFTClosedMinter(collectionInfo.metadata.minterMd5)) {
+        while (true) {
+          const minters = await getNFTClosedMinters(
+            this.configService,
+            collectionInfo,
+            this.spendSerivce,
+          );
+
+          if (minters.length == 0) {
+            console.warn(
+              `no NFT [${collectionInfo.metadata.symbol}] minter found`,
+            );
+            await sleep(5);
+            continue;
+          }
+
+          console.log(
+            `Total: ${minters.length} ${collectionInfo.metadata.symbol} minters found`,
+          );
+
+          const feeRate = await this.getFeeRate();
+          let feeUtxos = await this.getFeeUTXOs(address);
+
+          if (feeUtxos.length == 0) {
+            console.error(`no feeUtxos found`);
+            return;
+          }
+
+          if (feeUtxos.length < minters.length) {
+            console.warn(
+              `too less feeUtxos ${feeUtxos.length}, require ${minters.length}`,
+            );
+
+            const { newfeeUtxos, txId } = await feeSplitTx(
+              this.configService,
+              this.walletService,
+              feeUtxos,
+              feeRate,
+              minters.length,
+            );
+
+            await waitConfirm(this.configService, txId);
+            feeUtxos = newfeeUtxos;
+          }
+
+          const newFeeUtxos = feeUtxos.slice();
+
+          await Promise.all(
+            minters.map(async (_, i) => {
+              let minter = minters[i];
+              let vSizeAcc = 0;
+
+              let feeUtxo = feeUtxos[i];
+              for (let j = 0; j < 12; j++) {
+                const owner = options.owner;
+
+                const contentBody = this.readNFTFile(
+                  resourceDir,
+                  minter.state.data.nextLocalId,
+                  contentType,
+                );
+
+                const metadata = this.readMetaData(
+                  resourceDir,
+                  minter.state.data.nextLocalId,
+                );
+
+                const res = await closedMint(
+                  this.configService,
+                  this.walletService,
+                  this.spendSerivce,
+                  feeRate,
+                  [feeUtxo],
+                  collectionInfo,
+                  minter,
+                  contentType,
+                  contentBody,
+                  metadata,
+                  owner,
+                );
+
+                if (res instanceof Error) {
+                  throw res;
+                }
+
+                const {
+                  newFeeUTXO,
+                  revealTxId,
+                  minter: newMinter,
+                  vSize,
+                } = res;
+
+                vSizeAcc += vSize;
+
+                console.log(
+                  `Minting ${collectionInfo.metadata.symbol}:${minter.state.data.nextLocalId} NFT in txid: ${revealTxId} ...`,
+                );
+                minter = newMinter;
+                feeUtxo = newFeeUTXO;
+                newFeeUtxos[i] = newFeeUTXO;
+                if (newMinter === null) {
+                  break;
+                }
+
+                if (vSizeAcc + vSize > 100_000) {
+                  break;
+                }
+              }
+              await waitConfirm(this.configService, newFeeUtxos[i].txId);
+            }),
+          );
+
+          await sleep(5);
+        }
+
         const contentBody = this.readNFTFile(
           resourceDir,
           minter.state.data.nextLocalId,

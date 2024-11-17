@@ -120,7 +120,15 @@ export async function closedMint(
   contentBody: string,
   nftmetadata: object,
   owner: string = '',
-): Promise<string | Error> {
+): Promise<
+  | {
+      revealTxId: string;
+      minter: NFTClosedMinterContract | null;
+      newFeeUTXO: UTXO;
+      vSize: number;
+    }
+  | Error
+> {
   const {
     utxo: minterUtxo,
     state: { protocolState, data: preState },
@@ -148,8 +156,9 @@ export async function closedMint(
 
   const newNextLocalId = preState.nextLocalId + 1n;
   const tokenState = CAT721Proto.create(owner, preState.nextLocalId);
+  let minterState: NftClosedMinterState | null = null;
   if (newNextLocalId < preState.quotaMaxLocalId) {
-    const minterState = NftClosedMinterProto.create(
+    minterState = NftClosedMinterProto.create(
       tokenP2TR,
       preState.quotaMaxLocalId,
       newNextLocalId,
@@ -376,5 +385,30 @@ export async function closedMint(
 
   spendService.updateSpends(revealTx);
 
-  return revealTx.id;
+  const newMinter: NFTClosedMinterContract | null =
+    minterState === null
+      ? null
+      : {
+          utxo: {
+            txId: revealTx.id,
+            outputIndex: 1,
+            satoshis: revealTx.outputs[1].satoshis,
+            script: revealTx.outputs[1].script.toHex(),
+          },
+          state: {
+            protocolState: newState,
+            data: minterState,
+          },
+        };
+  return {
+    revealTxId: revealTx.id,
+    minter: newMinter,
+    vSize: commitTx.vsize + revealTx.vsize,
+    newFeeUTXO: {
+      txId: revealTx.id,
+      outputIndex: changeOutputIndex,
+      satoshis: revealTx.outputs[changeOutputIndex].satoshis,
+      script: revealTx.outputs[changeOutputIndex].script.toHex(),
+    },
+  };
 }
