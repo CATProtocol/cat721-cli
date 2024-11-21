@@ -256,39 +256,6 @@ export class MintCommand extends BoardcastCommand {
 
           await sleep(5);
         }
-
-        const contentBody = this.readNFTFile(
-          resourceDir,
-          minter.state.data.nextLocalId,
-          contentType,
-        );
-
-        const metadata = this.readMetaData(
-          resourceDir,
-          minter.state.data.nextLocalId,
-        );
-
-        const res = await closedMint(
-          this.configService,
-          this.walletService,
-          this.spendSerivce,
-          feeRate,
-          feeUtxos,
-          collectionInfo,
-          minter as unknown as NFTClosedMinterContract,
-          contentType,
-          contentBody,
-          metadata,
-          options.owner,
-        );
-
-        if (res instanceof Error) {
-          throw res;
-        }
-
-        console.log(
-          `Minting ${collectionInfo.metadata.symbol}:${minter.state.data.nextLocalId} NFT in txid: ${res} ...`,
-        );
       } else if (isNFTParallelClosedMinter(collectionInfo.metadata.minterMd5)) {
         const contentBody = this.readNFTFile(
           resourceDir,

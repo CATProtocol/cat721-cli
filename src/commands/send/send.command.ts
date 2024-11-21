@@ -69,7 +69,10 @@ export class SendCommand extends BoardcastCommand {
       try {
         receiver = btc.Address.fromString(inputs[0]);
 
-        if (receiver.type !== 'taproot') {
+        if (
+          receiver.type !== 'taproot' &&
+          receiver.type !== 'witnesspubkeyhash'
+        ) {
           console.error(`Invalid address type: ${receiver.type}`);
           return;
         }

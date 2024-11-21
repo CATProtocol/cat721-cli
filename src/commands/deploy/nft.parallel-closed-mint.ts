@@ -220,7 +220,7 @@ export async function deploy(
   commitTx.change(changeAddress);
 
   if (commitTx.getChangeOutput() !== null) {
-    commitTx.getChangeOutput().satoshis -= 1;
+    commitTx.getChangeOutput().satoshis -= 2;
   }
 
   wallet.signTx(commitTx);
