@@ -1,21 +1,11 @@
 import { Command, Option } from 'nest-commander';
+import { logerror, getNFTMinter, isNFTParallelClosedMinter } from 'src/common';
 import {
-  getUtxos,
-  logerror,
-  btc,
-  isNFTOpenMinter,
-  isNFTClosedMinter,
-  getNFTMinter,
-  toTokenAddress,
-  isNFTParallelClosedMinter,
-  NFTClosedMinterContract,
-  NFTParallelClosedMinterContract,
-  NFTOpenMinterContract,
-  sleep,
-  getNFTClosedMinters,
-  waitConfirm,
-} from 'src/common';
-import { ConfigService, SpendService, WalletService } from 'src/providers';
+  ConfigService,
+  getProviders,
+  SpendService,
+  WalletService,
+} from 'src/providers';
 import { Inject } from '@nestjs/common';
 import { findCollectionInfoById } from 'src/collection';
 import {
@@ -24,16 +14,13 @@ import {
 } from '../boardcast.command';
 import { isAbsolute, join } from 'path';
 import { accessSync, constants, existsSync, readFileSync } from 'fs';
-import { generateCollectionMerkleTree } from '../deploy/nft.open-mint';
-import { openMint } from './nft.open-mint';
-import { closedMint } from './nft.closed-mint';
-import { parallelClosedMint } from './nft.parallel-closed-mint';
-import { feeSplitTx } from './split';
+import { mintNft, toTokenAddress, btc } from '@cat-protocol/cat-sdk';
+import { Ripemd160 } from 'scrypt-ts';
 
 interface MintCommandOptions extends BoardcastCommandOptions {
   id: string;
   resource: string;
-  owner?: string;
+  owner?: Ripemd160;
   type?: string;
 }
 
@@ -65,7 +52,7 @@ export class MintCommand extends BoardcastCommand {
 
       const contentType = options.type || 'image/png';
 
-      const address = this.walletService.getAddress();
+      const address = await this.walletService.getAddress();
       const collectionInfo = await findCollectionInfoById(
         this.configService,
         options.id,
@@ -79,30 +66,17 @@ export class MintCommand extends BoardcastCommand {
       }
 
       const feeRate = await this.getFeeRate();
-      const feeUtxos = await this.getFeeUTXOs(address);
 
-      if (feeUtxos.length === 0) {
-        console.warn('Insufficient satoshis balance!');
-        return;
-      }
-
-      const pubkeyX = this.walletService.getXOnlyPublicKey();
-      const collectionMerkleTree = isNFTOpenMinter(
-        collectionInfo.metadata.minterMd5,
-      )
-        ? generateCollectionMerkleTree(
-            collectionInfo.metadata.max,
-            pubkeyX,
-            contentType,
-            resourceDir,
-          )
-        : undefined;
+      const { chainProvider, utxoProvider } = getProviders(
+        this.configService,
+        this.walletService,
+      );
 
       const minter = await getNFTMinter(
         this.configService,
+        chainProvider,
         collectionInfo,
         this.spendSerivce,
-        collectionMerkleTree,
       );
 
       if (minter == null) {
@@ -112,182 +86,37 @@ export class MintCommand extends BoardcastCommand {
         return;
       }
 
-      const contentBody = this.readNFTFile(
-        resourceDir,
-        minter.state.data.nextLocalId,
-        contentType,
-      );
-
-      const metadata = this.readMetaData(
-        resourceDir,
-        minter.state.data.nextLocalId,
-      );
-
-      if (isNFTOpenMinter(collectionInfo.metadata.minterMd5)) {
-        const res = await openMint(
-          this.configService,
-          this.walletService,
-          this.spendSerivce,
-          feeRate,
-          feeUtxos,
-          collectionInfo,
-          minter as unknown as NFTOpenMinterContract,
-          collectionMerkleTree,
-          contentType,
-          contentBody,
-          metadata,
-          options.owner,
-        );
-
-        console.log(
-          `Minting ${collectionInfo.metadata.symbol}:${minter.state.data.nextLocalId} NFT in txid: ${res} ...`,
-        );
-      } else if (isNFTClosedMinter(collectionInfo.metadata.minterMd5)) {
-        while (true) {
-          const minters = await getNFTClosedMinters(
-            this.configService,
-            collectionInfo,
-            this.spendSerivce,
-          );
-
-          if (minters.length == 0) {
-            console.warn(
-              `no NFT [${collectionInfo.metadata.symbol}] minter found`,
-            );
-            await sleep(5);
-            continue;
-          }
-
-          console.log(
-            `Total: ${minters.length} ${collectionInfo.metadata.symbol} minters found`,
-          );
-
-          const feeRate = await this.getFeeRate();
-          let feeUtxos = await this.getFeeUTXOs(address);
-
-          if (feeUtxos.length == 0) {
-            console.error(`no feeUtxos found`);
-            return;
-          }
-
-          if (feeUtxos.length < minters.length) {
-            console.warn(
-              `too less feeUtxos ${feeUtxos.length}, require ${minters.length}`,
-            );
-
-            const { newfeeUtxos, txId } = await feeSplitTx(
-              this.configService,
-              this.walletService,
-              feeUtxos,
-              feeRate,
-              minters.length,
-            );
-
-            await waitConfirm(this.configService, txId);
-            feeUtxos = newfeeUtxos;
-          }
-
-          const newFeeUtxos = feeUtxos.slice();
-
-          await Promise.all(
-            minters.map(async (_, i) => {
-              let minter = minters[i];
-              let vSizeAcc = 0;
-
-              let feeUtxo = feeUtxos[i];
-              for (let j = 0; j < 12; j++) {
-                const owner = options.owner;
-
-                const contentBody = this.readNFTFile(
-                  resourceDir,
-                  minter.state.data.nextLocalId,
-                  contentType,
-                );
-
-                const metadata = this.readMetaData(
-                  resourceDir,
-                  minter.state.data.nextLocalId,
-                );
-
-                const res = await closedMint(
-                  this.configService,
-                  this.walletService,
-                  this.spendSerivce,
-                  feeRate,
-                  [feeUtxo],
-                  collectionInfo,
-                  minter,
-                  contentType,
-                  contentBody,
-                  metadata,
-                  owner,
-                );
-
-                if (res instanceof Error) {
-                  throw res;
-                }
-
-                const {
-                  newFeeUTXO,
-                  revealTxId,
-                  minter: newMinter,
-                  vSize,
-                } = res;
-
-                vSizeAcc += vSize;
-
-                console.log(
-                  `Minting ${collectionInfo.metadata.symbol}:${minter.state.data.nextLocalId} NFT in txid: ${revealTxId} ...`,
-                );
-                minter = newMinter;
-                feeUtxo = newFeeUTXO;
-                newFeeUtxos[i] = newFeeUTXO;
-                if (newMinter === null) {
-                  break;
-                }
-
-                if (vSizeAcc + vSize > 100_000) {
-                  break;
-                }
-              }
-              await waitConfirm(this.configService, newFeeUtxos[i].txId);
-            }),
-          );
-
-          await sleep(5);
-        }
-      } else if (isNFTParallelClosedMinter(collectionInfo.metadata.minterMd5)) {
+      if (isNFTParallelClosedMinter(collectionInfo.metadata.minterMd5)) {
         const contentBody = this.readNFTFile(
           resourceDir,
-          minter.state.data.nextLocalId,
+          minter.state.nextLocalId,
           contentType,
         );
 
         const metadata = this.readMetaData(
           resourceDir,
-          minter.state.data.nextLocalId,
+          minter.state.nextLocalId,
         );
-
-        const res = await parallelClosedMint(
-          this.configService,
+        const result = await mintNft(
           this.walletService,
-          this.spendSerivce,
+          utxoProvider,
+          chainProvider,
+          toTokenAddress(address),
+          minter,
+          collectionInfo.collectionId,
+          collectionInfo.metadata,
+          options.owner || toTokenAddress(address),
           feeRate,
-          feeUtxos,
-          collectionInfo,
-          minter as NFTParallelClosedMinterContract,
           contentType,
           contentBody,
           metadata,
-          options.owner,
         );
-
-        if (res instanceof Error) {
-          throw res;
-        }
+        const nftTx = result.nftTx.extractTransaction();
+        const mintTx = result.mintTx.extractTransaction();
+        this.spendService.updateTxsSpends([nftTx, mintTx]);
 
         console.log(
-          `Minting ${collectionInfo.metadata.symbol}:${minter.state.data.nextLocalId} NFT in txid: ${res} ...`,
+          `Minting ${collectionInfo.metadata.symbol}:${minter.state.nextLocalId} NFT in txid: ${mintTx.getId()} ...`,
         );
       } else {
         throw new Error('Unkown minter');
@@ -343,14 +172,14 @@ export class MintCommand extends BoardcastCommand {
     flags: '-o, --owner [owner]',
     description: 'mint nft into a owner',
   })
-  parseOwner(val: string): string {
+  parseOwner(val: string): Ripemd160 {
     if (!val) {
       logerror("owner can't be empty!", new Error());
       process.exit(0);
     }
     const HEX_Exp = /^#[0-9A-Fa-f]{20}$/i;
     if (HEX_Exp.test(val)) {
-      return val;
+      return Ripemd160(val);
     }
 
     let receiver: btc.Address;
@@ -369,32 +198,6 @@ export class MintCommand extends BoardcastCommand {
       console.error(`Invalid owner address: "${val}" `);
     }
     return;
-  }
-
-  @Option({
-    flags: '-s, --stop [stopId]',
-    description: 'stop minting at a localId',
-  })
-  parseStopId(val: string): bigint {
-    if (!val) {
-      logerror("owner can't be empty!", new Error());
-      process.exit(0);
-    }
-
-    return BigInt(val);
-  }
-
-  async getFeeUTXOs(address: btc.Address) {
-    let feeUtxos = await getUtxos(
-      this.configService,
-      this.walletService,
-      address,
-    );
-
-    feeUtxos = feeUtxos.filter((utxo) => {
-      return this.spendService.isUnspent(utxo);
-    });
-    return feeUtxos;
   }
 
   readNFTFile(resource: string, localId: bigint, type: string) {

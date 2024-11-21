@@ -3,7 +3,6 @@ import {
   logerror,
   getTrackerStatus,
   getNfts,
-  btc,
   getCollectionsByOwner,
 } from 'src/common';
 import { BaseCommand, BaseCommandOptions } from '../base.command';
@@ -48,7 +47,7 @@ export class BalanceCommand extends BaseCommand {
     passedParams: string[],
     options?: BalanceCommandOptions,
   ): Promise<void> {
-    const address = this.walletService.getAddress();
+    const address = await this.walletService.getAddress();
 
     if (!options.id) {
       this.showAllColloction(address);
@@ -58,7 +57,7 @@ export class BalanceCommand extends BaseCommand {
     this.showOneCollection(options.id, address);
   }
 
-  async showOneCollection(collectionId: string, address: btc.Address) {
+  async showOneCollection(collectionId: string, address: string) {
     try {
       const collectionInfo = await findCollectionInfoById(
         this.configService,
@@ -84,9 +83,9 @@ export class BalanceCommand extends BaseCommand {
       if (nfts) {
         console.log(
           table(
-            nfts.contracts.map((token) => {
+            nfts.map((nft) => {
               return {
-                nft: `${collectionInfo.collectionId}:${token.state.data.localId}`,
+                nft: `${collectionInfo.collectionId}:${nft.state.localId}`,
                 symbol: collectionInfo.metadata.symbol,
                 //content: `${this.configService.getTracker()}/api/collections/${collectionInfo.tokenId}/localId/${token.state.data.localId}/content`,
               };
@@ -99,7 +98,7 @@ export class BalanceCommand extends BaseCommand {
     }
   }
 
-  async showAllColloction(address: btc.Address) {
+  async showAllColloction(address: string) {
     const collectionIds = await getCollectionsByOwner(
       this.configService,
       address.toString(),

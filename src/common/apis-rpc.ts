@@ -1,9 +1,9 @@
 import { UTXO } from 'scrypt-ts';
 import { Decimal } from 'decimal.js';
-import * as descriptors from '@bitcoinerlab/descriptors';
 import { logerror } from './log';
 import { ConfigService } from 'src/providers';
-import fetch from 'node-fetch-cjs';
+import fetch from 'cross-fetch';
+import { descriptorChecksum } from './checksum';
 
 /**
  * only for localhost
@@ -302,7 +302,7 @@ export const rpc_importdescriptors = async function (
     `${config.getRpcUser()}:${config.getRpcPassword()}`,
   ).toString('base64')}`;
 
-  const checksum = descriptors.checksum(desc);
+  const checksum = descriptorChecksum(desc);
 
   const timestamp = Math.ceil(new Date().getTime() / 1000);
   return fetch(config.getRpcUrl(walletName), {

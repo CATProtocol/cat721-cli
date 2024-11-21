@@ -1,14 +1,12 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import {
-  CollectionInfo,
-  CollectionMetadata,
-  getCollectionInfo,
-  logerror,
-} from 'src/common';
+import { Cat721Metadata, Cat721NftInfo } from '@cat-protocol/cat-sdk';
+import { getCollectionInfo, logerror } from 'src/common';
 import { ConfigService } from 'src/providers';
 
-export function getAllCollectionInfos(config: ConfigService): CollectionInfo[] {
+export function getAllCollectionInfos(
+  config: ConfigService,
+): Cat721NftInfo<Cat721Metadata>[] {
   const path = getCollectionInfoPath(config);
 
   try {
@@ -37,7 +35,7 @@ export function getAllCollectionInfos(config: ConfigService): CollectionInfo[] {
 export async function findCollectionInfoById(
   config: ConfigService,
   id: string,
-): Promise<CollectionInfo | null> {
+): Promise<Cat721NftInfo<Cat721Metadata> | null> {
   const collectionInfos = getAllCollectionInfos(config);
   let collectionInfo = collectionInfos.find(
     (collection) => collection.collectionId === id,
@@ -56,9 +54,9 @@ export async function findCollectionInfoById(
 }
 
 function saveCollectionInfo(
-  collectionInfo: CollectionInfo,
+  collectionInfo: Cat721NftInfo<Cat721Metadata>,
   config: ConfigService,
-): CollectionInfo[] {
+): Cat721NftInfo<Cat721Metadata>[] {
   const collectionInfos = getAllCollectionInfos(config);
   collectionInfos.push(collectionInfo);
   const path = getCollectionInfoPath(config);
@@ -73,21 +71,20 @@ function saveCollectionInfo(
 
 export function addCollectionInfo(
   config: ConfigService,
-  tokenId: string,
-  collectionMetadata: CollectionMetadata,
-  tokenAddr: string,
+  collectionId: string,
+  collectionMetadata: Cat721Metadata,
+  collectionAddr: string,
   minterAddr: string,
   genesisTxid: string,
   revealTxid: string,
 ) {
-  const collectionInfo: CollectionInfo = {
+  const collectionInfo: Cat721NftInfo<Cat721Metadata> = {
     metadata: collectionMetadata,
-    collectionId: tokenId,
-    collectionAddr: tokenAddr,
+    collectionId,
+    collectionAddr,
     minterAddr: minterAddr,
     genesisTxid,
     revealTxid,
-    timestamp: new Date().getTime(),
   };
   saveCollectionInfo(collectionInfo, config);
   return collectionInfo;

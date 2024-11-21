@@ -11,3 +11,5 @@ export class Providers {}
 export * from './configService';
 export * from './walletService';
 export * from './spendService';
+
+export * from './blockChainService';

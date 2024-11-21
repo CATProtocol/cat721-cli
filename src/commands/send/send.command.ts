@@ -1,22 +1,24 @@
 import { Command, Option } from 'nest-commander';
+import { logerror, getNft } from 'src/common';
 import {
-  logerror,
-  btc,
-  CollectionInfo,
-  getUtxos,
-  broadcast,
-  getNft,
-  toTokenAddress,
-} from 'src/common';
-import { ConfigService, SpendService, WalletService } from 'src/providers';
+  ConfigService,
+  getProviders,
+  SpendService,
+  WalletService,
+} from 'src/providers';
 import { Inject } from '@nestjs/common';
 import {
   BoardcastCommand,
   BoardcastCommandOptions,
 } from '../boardcast.command';
 import { findCollectionInfoById } from 'src/collection';
-import { sendNfts } from './nft';
-import { pickLargeFeeUtxo } from './pick';
+import {
+  Cat721Metadata,
+  Cat721NftInfo,
+  singleSendNft,
+  toTokenAddress,
+  btc,
+} from '@cat-protocol/cat-sdk';
 
 interface SendCommandOptions extends BoardcastCommandOptions {
   id: string;
@@ -53,7 +55,7 @@ export class SendCommand extends BoardcastCommand {
     }
 
     try {
-      const address = this.walletService.getAddress();
+      const address = await this.walletService.getAddress();
       const collectionInfo = await findCollectionInfoById(
         this.configService,
         options.id,
@@ -89,27 +91,12 @@ export class SendCommand extends BoardcastCommand {
   }
 
   async send(
-    collectionInfo: CollectionInfo,
+    collectionInfo: Cat721NftInfo<Cat721Metadata>,
     receiver: btc.Address,
     address: btc.Address,
     options: SendCommandOptions,
   ) {
     const feeRate = await this.getFeeRate();
-
-    let feeUtxos = await getUtxos(
-      this.configService,
-      this.walletService,
-      address,
-    );
-
-    feeUtxos = feeUtxos.filter((utxo) => {
-      return this.spendService.isUnspent(utxo);
-    });
-
-    if (feeUtxos.length === 0) {
-      console.warn('Insufficient satoshis balance!');
-      return;
-    }
 
     const nft = await getNft(
       this.configService,
@@ -122,61 +109,32 @@ export class SendCommand extends BoardcastCommand {
       return;
     }
 
-    if (nft.state.data.ownerAddr !== toTokenAddress(address)) {
+    if (nft.state.ownerAddr !== toTokenAddress(address)) {
       console.log(
         `${collectionInfo.collectionId}:${options.localId} nft is not owned by your address ${address}`,
       );
       return;
     }
 
-    const feeUtxo = pickLargeFeeUtxo(feeUtxos);
-    if (!nft) {
-      console.error(`No nft localId = ${options.localId} found!`);
-      return;
-    }
-
-    const cachedTxs: Map<string, btc.Transaction> = new Map();
-    const result = await sendNfts(
+    const { chainProvider, utxoProvider } = getProviders(
       this.configService,
       this.walletService,
-      feeUtxo,
-      feeRate,
-      collectionInfo,
-      [nft],
-      address,
-      receiver,
-      cachedTxs,
     );
 
-    if (result) {
-      const commitTxId = await broadcast(
-        this.configService,
-        this.walletService,
-        result.commitTx.uncheckedSerialize(),
-      );
+    const result = await singleSendNft(
+      this.walletService,
+      utxoProvider,
+      chainProvider,
+      collectionInfo.minterAddr,
+      [nft],
+      [toTokenAddress(receiver)],
+      feeRate,
+    );
 
-      if (commitTxId instanceof Error) {
-        throw commitTxId;
-      }
-
-      this.spendService.updateSpends(result.commitTx);
-
-      const revealTxId = await broadcast(
-        this.configService,
-        this.walletService,
-        result.revealTx.uncheckedSerialize(),
-      );
-
-      if (revealTxId instanceof Error) {
-        throw revealTxId;
-      }
-
-      this.spendService.updateSpends(result.revealTx);
-
-      console.log(
-        `Sending ${collectionInfo.collectionId}:${options.localId} nft  to ${receiver} \nin txid: ${result.revealTx.id}`,
-      );
-    }
+    const sendTx = result.sendTx.extractTransaction();
+    console.log(
+      `Sending ${collectionInfo.collectionId}:${options.localId} nft  to ${receiver} \nin txid: ${sendTx.getId()}`,
+    );
   }
 
   @Option({

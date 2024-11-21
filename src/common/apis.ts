@@ -1,5 +1,5 @@
 import { UTXO } from 'scrypt-ts';
-import fetch from 'node-fetch-cjs';
+import fetch from 'cross-fetch';
 
 import {
   rpc_broadcast,
@@ -9,9 +9,9 @@ import {
   rpc_listunspent,
 } from './apis-rpc';
 import { logerror } from './log';
-import { btc } from './btc';
 import { ConfigService, WalletService } from 'src/providers';
 import { sleep } from './utils';
+import { btc } from '@cat-protocol/cat-sdk';
 
 export const getFeeRate = async function (
   config: ConfigService,

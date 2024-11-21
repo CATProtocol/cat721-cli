@@ -1,21 +1,16 @@
 import { Command, Option } from 'nest-commander';
 import {
-  getUtxos,
   logerror,
-  btc,
-  CollectionMetadata,
   checkOpenMintMetadata,
   checkClosedMintMetadata,
 } from 'src/common';
-import {
-  generateCollectionMerkleTree,
-  deploy as openMintDeploy,
-} from './nft.open-mint';
 
-import { deploy as closedMintDeploy } from './nft.closed-mint';
-import { deploy as closedParallelMintDeploy } from './nft.parallel-closed-mint';
-import { ConfigService } from 'src/providers/configService';
-import { SpendService, WalletService } from 'src/providers';
+import {
+  getProviders,
+  SpendService,
+  WalletService,
+  ConfigService,
+} from 'src/providers';
 import { Inject } from '@nestjs/common';
 import { addCollectionInfo } from 'src/collection';
 import { isAbsolute, join } from 'path';
@@ -25,10 +20,11 @@ import {
   BoardcastCommandOptions,
 } from '../boardcast.command';
 import {
-  NftClosedMinter,
-  NftOpenMinter,
+  Cat721Metadata,
+  deployParallelClosedMinter,
   NftParallelClosedMinter,
-} from '@cat-protocol/cat-smartcontracts';
+  toTokenAddress,
+} from '@cat-protocol/cat-sdk';
 
 interface DeployCommandOptions extends BoardcastCommandOptions {
   config?: string;
@@ -78,9 +74,9 @@ export class DeployCommand extends BoardcastCommand {
     options?: DeployCommandOptions,
   ): Promise<void> {
     try {
-      const address = this.walletService.getAddress();
+      const address = await this.walletService.getAddress();
 
-      let metadata: CollectionMetadata;
+      let metadata: Cat721Metadata;
       if (options.metadata) {
         const content = readFileSync(options.metadata).toString();
         metadata = JSON.parse(content);
@@ -93,7 +89,7 @@ export class DeployCommand extends BoardcastCommand {
           description,
           max,
           premine,
-        } as CollectionMetadata;
+        } as Cat721Metadata;
       }
 
       if (isEmptyOption(options)) {
@@ -115,38 +111,9 @@ export class DeployCommand extends BoardcastCommand {
 
       const feeRate = await this.getFeeRate();
 
-      const utxos = await getUtxos(
-        this.configService,
-        this.walletService,
-        address,
-      );
-
-      if (utxos.length === 0) {
-        console.warn('Insufficient satoshi balance!');
-        return;
-      }
-
-      if (options.openMint) {
-        Object.assign(metadata, {
-          minterMd5: NftOpenMinter.getArtifact().md5,
-        });
-      } else if (options.parallel) {
-        Object.assign(metadata, {
-          minterMd5: NftParallelClosedMinter.getArtifact().md5,
-        });
-      } else {
-        Object.assign(metadata, {
-          minterMd5: NftClosedMinter.getArtifact().md5,
-        });
-      }
-
-      let result: {
-        genesisTx: btc.Transaction;
-        revealTx: btc.Transaction;
-        tokenId: string;
-        tokenAddr: string;
-        minterAddr: string;
-      } | null = null;
+      Object.assign(metadata, {
+        minterMd5: NftParallelClosedMinter.getArtifact().md5,
+      });
 
       const contentType = options.type || 'image/png';
 
@@ -157,69 +124,38 @@ export class DeployCommand extends BoardcastCommand {
           }
         : undefined;
 
-      if (options.openMint) {
-        const pubkeyX = this.walletService.getXOnlyPublicKey();
+      const { chainProvider, utxoProvider } = getProviders(
+        this.configService,
+        this.walletService,
+      );
 
-        const resourceDir = options.resource
-          ? options.resource
-          : join(process.cwd(), 'resource');
+      const result = await deployParallelClosedMinter(
+        this.walletService,
+        utxoProvider,
+        chainProvider,
+        toTokenAddress(address),
+        metadata,
+        feeRate,
+        icon,
+      );
 
-        const collectionMerkleTree = generateCollectionMerkleTree(
-          metadata.max,
-          pubkeyX,
-          contentType,
-          resourceDir,
-        );
-
-        result = await openMintDeploy(
-          metadata,
-          feeRate,
-          utxos,
-          this.walletService,
-          this.configService,
-          collectionMerkleTree.merkleRoot,
-          icon,
-        );
-      } else if (options.parallel) {
-        result = await closedParallelMintDeploy(
-          metadata,
-          feeRate,
-          utxos,
-          this.walletService,
-          this.configService,
-          icon,
-        );
-      } else {
-        result = await closedMintDeploy(
-          metadata,
-          feeRate,
-          utxos,
-          this.walletService,
-          this.configService,
-          icon,
-        );
-      }
-
-      if (!result) {
-        console.log(`deploying Token ${metadata.name} failed!`);
-        return;
-      }
-
-      this.spendService.updateTxsSpends([result.genesisTx, result.revealTx]);
+      const genesisTx = result.genesisTx.extractTransaction();
+      const revealTx = result.revealTx.extractTransaction();
+      this.spendService.updateTxsSpends([genesisTx, revealTx]);
 
       console.log(`Nft collection ${metadata.symbol} has been deployed.`);
-      console.log(`CollectionId: ${result.tokenId}`);
-      console.log(`Genesis txid: ${result.genesisTx.id}`);
-      console.log(`Reveal txid: ${result.revealTx.id}`);
+      console.log(`CollectionId: ${result.collectionId}`);
+      console.log(`Genesis txid: ${result.genesisTxid}`);
+      console.log(`Reveal txid: ${result.revealTxid}`);
 
       addCollectionInfo(
         this.configService,
-        result.tokenId,
+        result.collectionId,
         metadata,
-        result.tokenAddr,
+        result.collectionAddr,
         result.minterAddr,
-        result.genesisTx.id,
-        result.revealTx.id,
+        result.genesisTxid,
+        result.revealTxid,
       );
     } catch (error) {
       logerror('Deploy failed!', error);
