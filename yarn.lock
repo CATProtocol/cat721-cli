@@ -366,10 +366,10 @@
     "@noble/hashes" "^1.1.5"
     "@noble/secp256k1" "^1.7.1"
 
-"@cat-protocol/cat-sdk@^0.1.13":
-  version "0.1.13"
-  resolved "https://registry.yarnpkg.com/@cat-protocol/cat-sdk/-/cat-sdk-0.1.13.tgz#371830ff490fb6a876950d9a49fc56208af52e7f"
-  integrity sha512-3Me9sM6nO3cWCgyzwcjAwHasrsHCE48RidOwV0sLWmYk7WCOted5vCXPUq9DzguM9JaTzI2VnVzzz7eY88h5sw==
+"@cat-protocol/cat-sdk@^1.0.5":
+  version "1.0.6"
+  resolved "https://registry.yarnpkg.com/@cat-protocol/cat-sdk/-/cat-sdk-1.0.6.tgz#7b8ab0c5b8e719c9a43bbf4e4789f287d53ff43f"
+  integrity sha512-IF/4kFOYhcuqMO08yJguicTfAcZQuDsfCMq0aL7Zz3GtTDQrE5ZVvsut4Rt7aCiKyNqGkg1FYtV+rS/q/ssxmw==
   dependencies:
     "@bitcoinerlab/secp256k1" "^1.1.1"
     "@cmdcode/buff" "^2.2.4"
@@ -388,7 +388,7 @@
     ecurve "^1.0.6"
     js-sha256 "^0.9.0"
     lodash "^4.17.21"
-    scrypt-ts "1.4.0"
+    scrypt-ts "^1.4.3"
 
 "@cmdcode/buff@^2.2.4", "@cmdcode/buff@^2.2.5":
   version "2.2.5"
@@ -6140,21 +6140,21 @@ schema-utils@^3.1.1, schema-utils@^3.2.0:
     ajv "^6.12.5"
     ajv-keywords "^3.5.2"
 
-scrypt-ts@1.4.0:
-  version "1.4.0"
-  resolved "https://registry.yarnpkg.com/scrypt-ts/-/scrypt-ts-1.4.0.tgz#d72b9aa4e28ba16d2b33e58e93c503f10d97f448"
-  integrity sha512-mmdnJ0zDopUo44sfXbgUOlxBF1mXNJhL8lyTy77GgC/rez85vS1nzeLf9SuKe9/BZJDM/vu7rIu08mpMkS/8ag==
+scrypt-ts@^1.4.3:
+  version "1.4.3"
+  resolved "https://registry.yarnpkg.com/scrypt-ts/-/scrypt-ts-1.4.3.tgz#56e55910b76136205bdbb0ed61ed72803d716049"
+  integrity sha512-q2P/elCwojOeOZp87RcwgMqmSPN0zja4xRXv7gW2zYNuttbeBLJNyXwjwfOrYuppgTUyseYQYtW91B4UcMEe5Q==
   dependencies:
     deep-equal "^2.2.0"
     fast-diff "^1.2.0"
     lodash "^4.17.21"
     object-hash "^3.0.0"
     reflect-metadata "^0.1.13"
-    scryptlib "^2.2.0"
+    scryptlib "^2.2.4"
     socket.io-client "^4.6.1"
     superagent "^8.0.9"
 
-scryptlib@^2.2.0:
+scryptlib@^2.2.4:
   version "2.2.4"
   resolved "https://registry.yarnpkg.com/scryptlib/-/scryptlib-2.2.4.tgz#ad548fbba2f43e89f808f63b9e6b0861fecd7a21"
   integrity sha512-COlBP/voyTviqTNpxN222difwialHqNmVwD7h8+9Wuj37jgcQbHMt9wKJW7N22nfLGYjojllkRlgSBQBbjQHNA==
